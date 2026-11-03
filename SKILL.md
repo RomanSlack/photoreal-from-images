@@ -52,27 +52,31 @@ Geometry stays procedural (one seed = one plant, no two alike), because shape, d
   batching cameras once grew to 16 GB and the OOM killer took the desktop session. Only render on the GPU.
 - Never overwrite an image: every render is `<name>_vNNN.jpg`; the history is how you see progress.
 
-## Why this costs so little (Claude usage + API money)
+## Why this costs so little (Claude Code usage)
 
-This project ran for weeks of long sessions on a $200 Claude Max plan and barely used any of it. The reasons are structural:
+This project ran for weeks of long sessions on a $200 Claude Max plan and barely used any of it. In order of impact:
 
-- **Claude writes code; the computer does the heavy work.** Geometry, texture processing and every render happen locally
-  (Blender Cycles on the GPU, numpy/OpenCV). A million leaves cost the same tokens as ten: it is one script. Claude's tokens
-  go to short code edits, short command outputs and looking at a few images.
-- **Variants are free.** A generator with a seed makes 100 different pines for zero extra tokens or API calls.
-- **Images are generated once and reused forever.** One heath photo covers 900 m2 of ground; one granite photo every
-  boulder. The whole gym project used ~134 generated images, about **$15 of image API** in total
-  (Gemini Nano Banana 2 at ~$0.07-0.15 each); textures beyond that are free (Poly Haven CC0).
-- **Cheap feedback loop.** The 30-second studio render catches problems before a 10-minute scene render, and Claude reads
-  one downsized JPG (about 1-2k tokens) instead of logs or many frames.
-- **Terse tool output.** Commands print only what is needed (`grep` the log for `[time]`, `kept`, `Traceback`), never full
-  Blender logs. Long jobs run in the background and notify when done instead of being polled.
-- **Measure before optimising.** `[time]` lines showed 3 of 10 minutes per shot were ground ray-casts through the whole
-  building: a BVH of the ground mesh made it 1 second. Caching expensive results (a grown birch grove saved to a .blend and
-  appended) does the same.
-- **Subagents only for real fan-out work** (e.g. web research with image downloads), not for things a few tool calls do.
-- **Everything is saved and committed as it goes** (versioned renders, one commit per change), so nothing is ever redone
-  after a crash or a lost context.
+1. **Prompt caching.** Every turn re-sends the whole conversation (instructions, files read, history), but that prefix is
+   cached and cache reads cost about a tenth of fresh input. In a long session almost every turn is mostly cache hits; only
+   the newest message and tool result are new. Keep sessions long and on one topic instead of starting fresh constantly.
+2. **Claude writes code; the computer does the heavy work.** A birch with 150,000 leaves is a 200-line script: Claude
+   writes it once, Blender runs it, and the leaves never pass through the model. Geometry, textures and every render run on
+   the local GPU/CPU, which costs no tokens. Variants are free: a seed makes 100 different pines.
+3. **Tiny tool results.** `grep` the log for the three lines that matter (`[time]`, `kept`, `Traceback`), never dump a full
+   Blender log. Read files by line range. Look at one downsized JPG (~1.5k tokens) or a contact sheet, not many full frames.
+4. **No polling.** Long renders run in the background and notify when done; every "is it done yet?" check is a full turn
+   that re-sends the conversation.
+5. **Compaction.** When a session gets long it is summarised automatically, so turns stop dragging the whole history.
+6. **Few subagents.** Each starts with an empty context and re-reads everything; use one only for real fan-out (e.g. web
+   research with image downloads).
+7. **Knowledge in files, loaded on demand.** HANDOFF.md, VISION.md and short memory notes hold the project's decisions;
+   only a one-line-per-note memory index loads every session.
+8. **A cheap feedback loop.** The 30-second studio render catches problems before a 10-minute scene render, and `[time]`
+   lines show where minutes go (ground ray-casts through the whole building took 3 minutes; a BVH of the ground mesh made
+   it 1 second; a grown birch grove is cached to a .blend and appended).
+
+The image API is a separate, small bill: ~134 generated images for the whole gym, about $15 (Gemini Nano Banana 2 at
+~$0.07-0.15 each); every other texture is free (Poly Haven CC0).
 
 ## Gallery (all made this way, rendered locally)
 
